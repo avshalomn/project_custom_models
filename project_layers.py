@@ -112,8 +112,8 @@ class ModularLayer(tf.keras.layers.Layer):
 
     def get_config(self):
         config = super(ModularLayer, self).get_config()
-        config.update({'amp_weights':self.amp_w})
-        config.update({'phase_weights':self.phase_w})
+        # config.update({'amp_weights':self.amp_w})
+        # config.update({'phase_weights':self.phase_w})
         return config
 
 ###################

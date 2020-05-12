@@ -22,3 +22,22 @@ LAYER_PHASE_MAX = 2*PI
 LAYER_PHASE_MIN = 0.0
 LAYER_AMP_MAX = 1
 LAYER_AMP_MIN = 0
+
+
+"""
+Header
+"""
+header = "\n"\
+"|**************************************************************|\n" \
+"|____________Diffractive Deep Neural Network Trainer___________|\n" \
+"|* Model Name:                {}                               \n" \
+"|* Number of Layers:          {}                               \n" \
+"|* Distance between layers:   {}                               \n" \
+"|* Wavelength in pixles:      {}                               \n" \
+"|* Refractive Index           {}                               \n" \
+"|                                                              \n" \
+"|                                                              \n" \
+"|                                                              \n" \
+"|                                                              \n" \
+"|**************************************************************|\n" \
+

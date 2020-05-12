@@ -54,6 +54,8 @@ class CustomModel():
 
         self.running_model  = False
 
+
+        self.printHeader()
         print("**** Processing Parameters ****\n")
         self.processParams()
         print("**** Finished Processing Parameters ****\n")
@@ -203,18 +205,23 @@ class CustomModel():
         ## after training finished
         print(model.summary())
         self.model = model
-        with open(self.dir_to_save + '/' + self.name_to_save, "w") as fp:
-            json.dump(tf.keras.Model.to_json(model) , fp)
-            tf.keras.Model.to_json(model)
 
-        print("Success! - save model @ : ", self.dir_to_save + '/' + self.name_to_save)
+        ## TODO - fix saveing model!!!
+        # model.save(self.dir_to_save + '/' + self.name_to_save)
+        model.save("{}/{}/".format(self.dir_to_save,self.model_name))
+        # with open(self.dir_to_save + '/' + self.name_to_save, "w") as fp:
+        #     json.dump(tf.keras.Model.to_json(model) , fp)
+        #     tf.keras.Model.to_json(model)
+
+        # print("Success! - save model @ : ", self.dir_to_save + '/' + self.name_to_save)
         # project_utils.save_model_to_json(self.model,
         #                                  self.shape,
         #                                  self.dir_to_save,
         #                                  self.name_to_save)
 
-        self.model.save_weights(self.dir_to_save+'/'+self.weights_name)
+        # self.model.save_weights(self.dir_to_save+'/'+self.weights_name)
         print("*** Finished training - saved weights @ {} ***".format(self.dir_to_save +'/'+self.weights_name))
+
 
     def rebuildModel(self):
         """
@@ -305,3 +312,7 @@ class CustomModel():
 
         print("Total # of True: ", TT.trues)
         print("Total # of False: ", TT.falses)
+
+    def printHeader(self):
+        print(header.format(self.model_name, self.num_of_layers, self.z,
+                                          self.wavelen, self.nm))
