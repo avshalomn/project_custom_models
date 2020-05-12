@@ -1,4 +1,6 @@
 from project_defs import *
+import numpy as np
+PI = np.pi
 
 @tf.function
 def pad_add(av,size=None,stlen=10):
@@ -170,8 +172,8 @@ def my_fftfreq(n,d=1):
 @tf.function
 def my_fft_prop(field,
                 d = 75,
-                nm = 1,
-                res = 1.875,
+                nm = 1.0,
+                res = 1.3,
                 method = 'helmholtz',
                 ret_fft = None,
                 padding = True):
@@ -183,7 +185,7 @@ def my_fft_prop(field,
     fft_field = tf.cast(tf.signal.fft2d(field),tf.complex128)      # first convert to fft
     print(field)
 
-    km = (2*PI*nm)/res
+    km = (2*np.pi*nm)/res
 
     kx = tf.reshape((my_fftfreq(fft_field.shape[1])*2*PI),[-1,1])
     ky = tf.reshape((my_fftfreq(fft_field.shape[2])*2*PI),[1,-1])

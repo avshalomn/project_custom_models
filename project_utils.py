@@ -159,7 +159,6 @@ def fit_model(model,
 
     inputs = inputs[:samples_num]
     targets = targets[:samples_num]
-    print("inputs shape ", inputs.shape)
     if (rescaling == True):
         rescaled_HEIGHT, rescaled_WIDTH = inputs_shape[0] * rescale_muli, inputs_shape[
             1] * rescale_muli
@@ -239,7 +238,7 @@ def fit_model(model,
                       use_multiprocessing=True, steps_per_epoch=steps_per_epoch)
             model.save_weights(weights_path + weights_name)
 
-            print(model.summery())
+            print(model.sumery())
 
 
 @tf.function

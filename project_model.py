@@ -37,7 +37,7 @@ class CustomModel():
         self.phase_mod      = phase_modulation
         self.rescaling_f    = rescaling_factor
         self.padding_f      = padding_factor
-        self.nm             = nm,
+        self.nm             = nm
         self.lr             = learning_rate
         self.batch_size     = batch_size
         self.epochs         = epochs
@@ -54,19 +54,19 @@ class CustomModel():
 
         self.running_model  = False
 
-        print("**** Processing Parameters ****")
+        print("**** Processing Parameters ****\n")
         self.processParams()
-        print("**** Finished Processing Parameters ****")
+        print("**** Finished Processing Parameters ****\n")
         print("**** Building Model ****")
         self.buildModel()
-        print("**** Finished Building Model ****")
+        print("**** Finished Building Model ****\n")
         # print("**** Training Model ****")
         # self.trainModel()
         # print("**** Finished Training Model ****")
 
 
     def processParams(self):
-        print("---- processing model parameters ----")
+        print("---- processing model parameters ----\n")
         if "ubyte" in self.inputs_path:
             self.inputs = idx2numpy.convert_from_file(self.inputs_path)[:self.num_of_samples] / 255
             self.targets= idx2numpy.convert_from_file(self.targets_path)[:self.num_of_samples]
@@ -76,8 +76,8 @@ class CustomModel():
             exit(FAILURE)
 
         assert self.epochs > 0
-
-        shape_1d = (self.inputs.shape)[0]
+        assert len(self.inputs.shape) >= 3
+        shape_1d = (self.inputs.shape)[1]
 
         if self.rescaling_f != None:
             shape_1d *= self.rescaling_f
@@ -92,16 +92,19 @@ class CustomModel():
         print("---- model shape after processing is : {} ----".format(self.shape))
 
         line = "model : {}\nshape : {}\nlearning_rate : {}\nZ :{}\nlambda :{}\n" \
-                           "input prop : {}\n# of layers{}".format(self.model_name,
+                           "input prop : {}\n# of layers_{}_phase_mode_{}_amp_mod_{}".format(
+            self.model_name,
                                                                     self.shape,
                                                                     self.lr,
                                                                     self.z,
                                                                     self.wavelen,
                                                                     self.prop_input,
-                                                                   self.num_of_layers)
+                                                                   self.num_of_layers,
+                                                                    self.phase_mod,
+                                                                    self.amp_mod)
         print(line)
 
-        self.weight_path = "model_{}_phase_modulate_{}_amp_modulate_{}_shape_{}_learning_rate_{}_Z_{}_lambda_{}_input prop{}_#_of_layers{}".format(self.model_name,
+        self.weight_path = "model_{}_phase_modulate_{}_amp_modulate_{}_shape_{}_learning_rate_{}_Z_{}_lambda_{}_input prop{}_#_of_layers_{}".format(self.model_name,
                                                                  self.phase_mod,
                                                                  self.amp_mod,
                                                        self.shape,
@@ -126,18 +129,20 @@ class CustomModel():
             self.layers.append(layer)
         print("---- model has {} layers ----".format(len(self.layers)))
 
-        flat_layer = tf.keras.layers.Flatten
-        prop_layer = tf.keras.layers.Lambda(project_prop.my_fft_prop)
+        # prop_layer = tf.keras.layers.Lambda(project_prop.my_fft_prop)
+        prop_layer = project_layers.PropLayer("prop_layer", self.z, self.shape, self.wavelen,
+                                              self.nm)
+
         output_layer = project_layers.output_layer
 
         model = tf.keras.models.Sequential()
         if self.prop_input:
             model.add(prop_layer)
-            model.add(flat_layer())
+            model.add(tf.keras.layers.Flatten())
 
         for i in range(self.num_of_layers):
             model.add(self.layers[i])
-            model.add(flat_layer())
+            model.add(tf.keras.layers.Flatten())
 
         model.add(output_layer)
 
@@ -167,8 +172,9 @@ class CustomModel():
                 ## process input/target batch ##
                 input_batch = tf.cast(self.inputs[i:i + self.batch_size], tf.float32)
                 target_batch = tf.cast(self.targets[i:i + self.batch_size], tf.float32)
-                target_batch = tf.reshape(target_batch,
-                                          (self.batch_size, self.shape[1], self.shape[2]))
+
+                # target_batch = tf.reshape(target_batch,
+                #                           (self.batch_size, self.shape[0], self.shape[1]))
 
                 if self.rescaling_f > 0:
                     input_batch = project_utils.rescale_batch(input_batch,
@@ -195,12 +201,17 @@ class CustomModel():
 
 
         ## after training finished
-        print(model.summery())
+        print(model.summary())
         self.model = model
-        project_utils.save_model_to_json(self.model,
-                                         self.shape,
-                                         self.dir_to_save,
-                                         self.name_to_save)
+        with open(self.dir_to_save + '/' + self.name_to_save, "w") as fp:
+            json.dump(tf.keras.Model.to_json(model) , fp)
+            tf.keras.Model.to_json(model)
+
+        print("Success! - save model @ : ", self.dir_to_save + '/' + self.name_to_save)
+        # project_utils.save_model_to_json(self.model,
+        #                                  self.shape,
+        #                                  self.dir_to_save,
+        #                                  self.name_to_save)
 
         self.model.save_weights(self.dir_to_save+'/'+self.weights_name)
         print("*** Finished training - saved weights @ {} ***".format(self.dir_to_save +'/'+self.weights_name))
