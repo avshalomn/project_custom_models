@@ -61,7 +61,7 @@ def _get_pad_left_right(small, large):
 def _pad_add_2d(av, size, stlen):
     """ 2D component of `pad_add`
     """
-    assert len(size)  in [2, 3]
+    # assert len(size)  in [2, 3]
 
     padx = _get_pad_left_right(av.shape[1], size[0])
     pady = _get_pad_left_right(av.shape[2], size[1])

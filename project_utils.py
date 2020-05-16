@@ -1,4 +1,5 @@
 from project_defs import *
+import matplotlib.pyplot as plt
 
 def compare_imgs(label, output, threshold):
     """

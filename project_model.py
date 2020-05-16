@@ -1,5 +1,5 @@
 from project_defs import *
-
+import matplotlib.pyplot as plt
 
 class CustomModel():
     def __init__(self,
@@ -152,7 +152,7 @@ class CustomModel():
             tf.keras.optimizers.Adam(lr=self.lr, beta_1=0.9, beta_2=0.999, epsilon=1e-07),
             loss=tf.keras.losses.mse, metrics=['mae', 'mse']
         )
-        assert self.model == None, "---- ERROR : model already exists! ----"
+        # assert self.model == None, "---- ERROR : model already exists! ----"
         self.running_model = True
         self.model = model
 
@@ -231,14 +231,17 @@ class CustomModel():
         """
 
         # only rebuild if the model is imported and not already run
-        if self.running_model == False:
-            self.processParams()
-            self.buildModel()
-            self.model = self.model.build((1, self.shape[0], self.shape[1]))
-            self.model.load_weights(self.dir_to_save+'/'+self.weights_name)
-            self.running_model = True
-            print("**** Loaded Weights ****")
+        # if self.running_model == False:
+        #     self.processParams()
+        #     self.buildModel()
+        #     self.model = self.model.build((1, self.shape[0], self.shape[1]))
+        #     self.model.load_weights(self.dir_to_save+'/'+self.weights_name)
+        #     self.running_model = True
 
+        self.processParams()
+        self.buildModel()
+        self.model = tf.keras.models.load_model("{}/{}/".format(self.dir_to_save,self.model_name))
+        print("**** Loaded Weights ****")
 
     def testModel(self, test_low_idx, test_high_idx, num_of_samples_to_tests,
                   numeric_targets):
@@ -295,8 +298,17 @@ class CustomModel():
                              0.3) == True):
                 TT.add_true(numeric_targets[idx])
                 print("TRUE")
+                ## TODO remove this printing after validating that it works
+                plt.subplot(311)
+                plt.imshow(tf.abs(tf.reshape(inp, (WIDTH, HEIGHT))))
+                plt.subplot(312)
+                plt.imshow(tf.reshape(target, (WIDTH, HEIGHT)))
+                plt.subplot(313)
+                project_utils.show_max_area(tf.reshape(y, (WIDTH, HEIGHT)))
+                project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
+                plt.show()
             else:
-                TT.add_false(numeric_targets[idx])
+                # TT.add_false(numeric_targets[idx])
                 print("FALSE")
                 plt.subplot(311)
                 plt.imshow(tf.abs(tf.reshape(inp, (WIDTH, HEIGHT))))
@@ -307,8 +319,8 @@ class CustomModel():
                 project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
                 plt.show()
 
-            print("# of True: ", TT.trues)
-            print("# of False: ", TT.falses)
+            # print("# of True: ", TT.trues)
+            # print("# of False: ", TT.falses)
 
         print("Total # of True: ", TT.trues)
         print("Total # of False: ", TT.falses)
