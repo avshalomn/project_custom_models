@@ -1,7 +1,7 @@
-# project_custom_models
+# Deep Defractive Neural Networks - Custom Simulations
 
-This project target is to supply a (base) module that can train a Neural Net - mimicing a physical 
-diffractive 3D network
+This project target is to supply a (base) module that can train a Neural Net - mimicking a physical 
+diffracting 3D network.
 
 ## How to use
 Currently, the module is capable of dealing the MNIST-digits dataset.
@@ -11,6 +11,7 @@ The flow is as follows:
 * call *model.testModel with the right parameters
 
 ## Notes
+
 This is still a work in progress - any input is more than welcome!
 
 ## Example 
