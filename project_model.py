@@ -104,7 +104,7 @@ class CustomModel():
                                                                    self.num_of_layers,
                                                                     self.phase_mod,
                                                                     self.amp_mod)
-        print(line)
+        # print(line)
 
         self.weight_path = "model_{}_phase_modulate_{}_amp_modulate_{}_shape_{}_learning_rate_{}_Z_{}_lambda_{}_input prop{}_#_of_layers_{}".format(self.model_name,
                                                                  self.phase_mod,
@@ -308,7 +308,7 @@ class CustomModel():
                 project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
                 plt.show()
             else:
-                # TT.add_false(numeric_targets[idx])
+                TT.add_false(numeric_targets[idx])
                 print("FALSE")
                 plt.subplot(311)
                 plt.imshow(tf.abs(tf.reshape(inp, (WIDTH, HEIGHT))))
@@ -318,6 +318,8 @@ class CustomModel():
                 project_utils.show_max_area(tf.reshape(y, (WIDTH, HEIGHT)))
                 project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
                 plt.show()
+
+            count+=1
 
             # print("# of True: ", TT.trues)
             # print("# of False: ", TT.falses)
