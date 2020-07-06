@@ -6,6 +6,8 @@ class CustomModel():
                  model_name,
                  inputs_path,
                  targets_path,
+                 test_inputs_path,
+                 test_lables_path,
                  num_of_samples,
                  num_of_layers,
                  layers_distance_pxls,
@@ -26,10 +28,13 @@ class CustomModel():
         self.model_name     = model_name
         self.inputs_path    = inputs_path
         self.targets_path   = targets_path
+        self.test_inputs_path = test_inputs_path
+        self.test_labels_path = test_lables_path
         self.num_of_samples = num_of_samples
         self.inputs         = None
         self.targets        = None
-
+        self.tests_inputs   = None
+        self.test_targets_labels   = None
         self.num_of_layers  = num_of_layers
         self.z              = layers_distance_pxls
         self.wavelen        = wavelen_in_pxls
@@ -72,6 +77,9 @@ class CustomModel():
         if "ubyte" in self.inputs_path:
             self.inputs = idx2numpy.convert_from_file(self.inputs_path)[:self.num_of_samples] / 255
             self.targets= idx2numpy.convert_from_file(self.targets_path)[:self.num_of_samples]
+            self.tests_inputs = idx2numpy.convert_from_file(self.test_inputs_path) / 255
+            self.test_targets_labels = idx2numpy.convert_from_file(self.test_labels_path) ## note
+            # - these are the labels only! need to convert to 2D
 
         else:
             print("---- ERROR: currently not supporting input files type!! ----")
@@ -223,7 +231,7 @@ class CustomModel():
         print("*** Finished training - saved weights @ {} ***".format(self.dir_to_save +'/'+self.weights_name))
 
 
-    def rebuildModel(self):
+    def rebuildModel(self, dir_to_save, model_name):
         """
         This function gets a path for a JSON file, desribing a model, an rebuild it before
         testing the model
@@ -238,14 +246,30 @@ class CustomModel():
         #     self.model.load_weights(self.dir_to_save+'/'+self.weights_name)
         #     self.running_model = True
 
-        self.processParams()
-        self.buildModel()
-        self.model = tf.keras.models.load_model("{}/{}/".format(self.dir_to_save,self.model_name))
+        # self.processParams()
+        # self.buildModel()
+        self.model = tf.keras.models.load_model("{}/{}/".format(dir_to_save,model_name))
         print("**** Loaded Weights ****")
 
-    def testModel(self, test_low_idx, test_high_idx, num_of_samples_to_tests,
-                  numeric_targets):
 
+    def testModel(self,
+                  test_low_idx,
+                  test_high_idx,
+                  num_of_samples_to_tests,
+                  numeric_targets,
+                  inputs_test_set = None,
+                  monte_carlo = False,
+                  monte_carlo_variance = None):
+
+        """
+
+        :param test_low_idx: min for random index
+        :param test_high_idx: max for random index
+        :param num_of_samples_to_tests: number of samples
+        :param numeric_targets: path to the array with the labels as numeric values
+        :param inputs_test_set: path to the 2D test set
+        :return:
+        """
         if self.running_model == False:
             print("ERROR: cannot test model, 'running_model' if False")
             exit(FAILURE)
@@ -263,8 +287,14 @@ class CustomModel():
                                                                       num_of_samples_to_tests, idx))
 
             # TODO - update this work with other inputs
-            inp = self.inputs[idx] / 255
-            target = self.targets[idx]
+            if (inputs_test_set != None):
+                inp = self.tests_inputs[idx]
+                assert (len(inp.shape) == 2)
+                target = project_utils.make_2D_label(self.test_targets_labels[idx], inp.shape)
+
+            else:
+                inp = self.inputs[idx]
+                target = self.targets[idx]
 
             # deal with rescaling
 
@@ -288,25 +318,23 @@ class CustomModel():
             inp     = tf.reshape(inp, (1, self.shape[0], self.shape[1]))
             target  = tf.reshape(target, (self.shape[0], self.shape[1]))
 
+            inp = tf.cast(inp, tf.complex128)
 
-            y = self.model.predict(inp)
+            # assign Monte Carlo model or the clean model
+            if monte_carlo == True:
+                test_model = self.monteCarlo(monte_carlo_variance)
+            else:
+                test_model = self.model
+
+            y = test_model.predict(inp)
 
             WIDTH, HEIGHT = self.shape
 
             if (project_utils.compare_imgs(tf.reshape(target, (WIDTH, HEIGHT)),
                              tf.reshape(y, (WIDTH, HEIGHT)),
                              0.3) == True):
-                TT.add_true(numeric_targets[idx])
+                # TT.add_true(numeric_targets[idx])  // TODO - uncomment and debug
                 print("TRUE")
-                ## TODO remove this printing after validating that it works
-                plt.subplot(311)
-                plt.imshow(tf.abs(tf.reshape(inp, (WIDTH, HEIGHT))))
-                plt.subplot(312)
-                plt.imshow(tf.reshape(target, (WIDTH, HEIGHT)))
-                plt.subplot(313)
-                project_utils.show_max_area(tf.reshape(y, (WIDTH, HEIGHT)))
-                project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
-                plt.show()
             else:
                 TT.add_false(numeric_targets[idx])
                 print("FALSE")
@@ -327,6 +355,24 @@ class CustomModel():
         print("Total # of True: ", TT.trues)
         print("Total # of False: ", TT.falses)
 
+
     def printHeader(self):
         print(header.format(self.model_name, self.num_of_layers, self.z,
                                           self.wavelen, self.nm))
+
+    def monteCarlo(self, variance):
+
+        assert (variance < 1)
+        assert (self.model != None)
+
+        monte_carlo_model = self.model
+
+        for i in range(len(monte_carlo_model.layers)):
+            weights = monte_carlo_model.layers[i].get_weights()
+            num_of_weights = len(weights)
+
+            if (num_of_weights > 0):
+                for w in range(num_of_weights):
+                    weights[w] *= np.random.uniform(0, variance, weights[w].shape)
+                    monte_carlo_model.layers[i].set_weights(weights)
+        return monte_carlo_model

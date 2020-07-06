@@ -97,13 +97,17 @@ class ModularLayer(tf.keras.layers.Layer):
             self.phase_w = tf.Variable(initial_value=tf.random.uniform(shape=(self.units,),
                                                                        minval=LAYER_PHASE_MIN,
                                                                        maxval=LAYER_PHASE_MAX),
-                                                                       trainable=True)
+                                                                       trainable=True,
+                                       constraint=lambda x: tf.clip_by_value(x, LAYER_PHASE_MIN,
+                                                                             LAYER_AMP_MAX))
 
         if self.amp_mod:
             self.amp_w = tf.Variable(initial_value=tf.random.uniform(shape=(self.units,),
                                                                      minval=LAYER_AMP_MIN,
                                                                      maxval=LAYER_AMP_MAX),
-                                                                     trainable=True)
+                                                                     trainable=True,
+                                     constraint=lambda x: tf.clip_by_value(x, LAYER_AMP_MIN, LAYER_PHASE_MAX)
+                                     )
         # in case we do not want Amplitude modulation, we assume "see thorugh" layer in terms of
         # Amplitude
         else:

@@ -1,6 +1,118 @@
 from project_defs import *
 import matplotlib.pyplot as plt
 
+
+# @tf.function
+def get_actual_square_coords(coords, sqaure_hight, square_third_width, square_fourths_width,
+                             second_row: bool):
+    h, w = coords
+    if (second_row == False):
+        return [coords[0] - sqaure_hight // 2, coords[0] + sqaure_hight // 2,
+                coords[1] - square_third_width // 2, coords[1] + square_third_width // 2]
+    else:
+        return [coords[0] - sqaure_hight // 2, coords[0] + sqaure_hight // 2,
+                coords[1] - square_fourths_width // 2, coords[1] + square_fourths_width // 2]
+
+
+# @tf.function
+def get_sqaures_corrs(label, original_input_shape: tuple):
+    import math
+    SQAURE_RATIO = 0.8
+    assert (len(original_input_shape) == 2)
+    h, w = original_input_shape
+
+    h_third = h // 3
+    w_third = h // 3
+    w_fourth = h // 4
+
+    first_row = int(h_third / 2)
+    second_row = first_row + h_third
+    third_row = second_row + h_third
+
+    first_thirds_col = int(w_third / 2)
+    second_thirds_col = first_thirds_col + w_third
+    third_thirds_col = second_thirds_col + w_third
+
+    first_fourths_col = int(w_fourth / 2)
+    second_fourths_col = first_fourths_col + w_fourth
+    third_fourths_col = second_fourths_col + w_fourth
+    fourth_fourths_col = third_fourths_col + w_fourth
+
+    # calculate the squares' width
+    f_t_rows_sqarue_width = math.floor(SQAURE_RATIO * w_third)
+    s_row_square_width = math.floor(SQAURE_RATIO * w_fourth)
+
+    # calculate the squares' hight
+    sqaure_hight = math.floor(SQAURE_RATIO * h_third)
+
+    #   coords, sqaure_hight, square_third_width, square_fourths_width, second_row : bool
+
+    ## first row
+    if label == 0:
+        return get_actual_square_coords((first_row, first_thirds_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, False)
+    if label == 1:
+        return get_actual_square_coords((first_row, second_thirds_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, False)
+    if label == 2:
+        return get_actual_square_coords((first_row, third_thirds_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, False)
+
+    ## second row
+    if label == 3:
+        return get_actual_square_coords((second_row, first_fourths_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, True)
+    if label == 4:
+        return get_actual_square_coords((second_row, second_fourths_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, True)
+    if label == 5:
+        return get_actual_square_coords((second_row, third_fourths_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, True)
+    if label == 6:
+        return get_actual_square_coords((second_row, fourth_fourths_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, True)
+
+    ## third row
+    if label == 7:
+        return get_actual_square_coords((third_row, first_thirds_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, False)
+    if label == 8:
+        return get_actual_square_coords((third_row, second_thirds_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, False)
+    if label == 9:
+        return get_actual_square_coords((third_row, third_thirds_col), sqaure_hight,
+                                        f_t_rows_sqarue_width, s_row_square_width, False)
+
+
+# @tf.function
+def make_2D_label(label: int, original_input_shape: tuple):
+    assert (label >= 0 and label < 10)
+    new_label = np.zeros(shape=original_input_shape)
+    coors = get_sqaures_corrs(label, original_input_shape)
+    new_label[coors[0]:coors[1], coors[2]:coors[3]] = 1
+
+    # convert to tensor
+    new_label = tf.convert_to_tensor(new_label)
+
+    # plt.figure()
+    # plt.imshow(new_label)
+    return new_label
+
+
+def make_inputs_targets_batch(input_and_targets_batch):
+    assert (len(input_and_targets_batch) > 0)
+
+    original_shape = input_and_targets_batch[0]["image"].shape
+
+    inp_batch = np.array([i["image"] for i in input_and_targets_batch])
+    numeric_lables = [i["lables"] for i in input_and_targets_batch]
+    targets_batch = np.array([make_2D_label(l, original_shape) for l in numeric_lables])
+
+    return inp_batch, targets_batch
+
+
+
+
 def compare_imgs(label, output, threshold):
     """
     :param label: the "real" data we expect
