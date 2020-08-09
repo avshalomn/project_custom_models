@@ -99,14 +99,19 @@ def make_2D_label(label: int, original_input_shape: tuple):
     return new_label
 
 
+def rgb2gray(rgb):
+    return np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140])
+
+
 def make_inputs_targets_batch(input_and_targets_batch):
-    assert (len(input_and_targets_batch) > 0)
 
-    original_shape = input_and_targets_batch[0]["image"].shape
+    original_shape = input_and_targets_batch["image"][0].shape[:2]
 
-    inp_batch = np.array([i["image"] for i in input_and_targets_batch])
-    numeric_lables = [i["lables"] for i in input_and_targets_batch]
-    targets_batch = np.array([make_2D_label(l, original_shape) for l in numeric_lables])
+    inp_batch = np.array([rgb2gray(i) for i in input_and_targets_batch["image"]])
+    numeric_lables = [i for i in input_and_targets_batch["label"]]
+
+    # print("the numeric labels are: ", numeric_lables)
+    targets_batch = np.array([make_2D_label(l.numpy(), original_shape) for l in numeric_lables])
 
     return inp_batch, targets_batch
 

@@ -19,7 +19,7 @@ class ModularLayer(tf.keras.layers.Layer):
                  wavelength_in_pixels,
                  nm,
                  amp_modulation = False,
-                 phase_modulation = False):
+                 phase_modulation = False, **kwargs):
         """
         this is a modular layer. we can choose the distnace to next layer to propegate,
         the refractive index of the medium (1 = air), shape of the layer, and wether or not we
@@ -34,11 +34,10 @@ class ModularLayer(tf.keras.layers.Layer):
         :param phase_modulation: bool
         """
 
-        super(ModularLayer, self).__init__()
+        super(ModularLayer, self).__init__(**kwargs)
         self.layer_name = layer_name
         self.shape = shape
         self.distance_in_pixels = distance_in_pixels
-        self.shape = shape
         self.wave_len = wavelength_in_pixels
         self.nm = nm
         self.units = 0
@@ -116,8 +115,16 @@ class ModularLayer(tf.keras.layers.Layer):
 
     def get_config(self):
         config = super(ModularLayer, self).get_config()
-        # config.update({'amp_weights':self.amp_w})
-        # config.update({'phase_weights':self.phase_w})
+        config.update(
+            {"layer_name":self.layer_name,
+             "shape":self.shape,
+             "distance_in_pixels":self.distance_in_pixels,
+             "wavelength_in_pixels":self.wave_len,
+             "nm":self.nm,
+             "amp_modulation":self.amp_mod,
+             "phase_modulation":self.phase_mod}
+        )
+        # print("new config : ", config)
         return config
 
 ###################
@@ -130,7 +137,7 @@ class PropLayer(tf.keras.layers.Layer):
                  distance_in_pixels,
                  shape,
                  wavelength_in_pixels,
-                 nm):
+                 nm, **kwargs):
         """
         this is a simple Proppagation layer - no variables to train.
         :param layer_name:
@@ -139,12 +146,11 @@ class PropLayer(tf.keras.layers.Layer):
         :param wavelength_in_pixels:
         :param nm:
         """
-        super(PropLayer, self).__init__()
+        super(PropLayer, self).__init__(**kwargs)
 
         self.layer_name = layer_name
         self.shape = shape
         self.distance_in_pixels = distance_in_pixels
-        self.shape = shape
         self.wave_len = wavelength_in_pixels
         self.nm = nm
         self.units = self.shape[0] * self.shape[1]
@@ -152,7 +158,8 @@ class PropLayer(tf.keras.layers.Layer):
 
 
     def call(self, inputs):
-        res = project_prop.my_fft_prop(field = inputs, d = self.distance_in_pixels, nm = self.nm,
+        res = tf.cast(inputs, tf.complex128)
+        res = project_prop.my_fft_prop(field = res, d = self.distance_in_pixels, nm = self.nm,
                                        res = self.wave_len, method = "helmholtz", ret_fft=None,
                                        padding = True)
         return tf.cast(res, tf.complex128)
@@ -160,6 +167,12 @@ class PropLayer(tf.keras.layers.Layer):
 
     def get_config(self):
         config = super(PropLayer, self).get_config()
+        config.update({"layer_name":self.layer_name,
+                       "shape":self.shape,
+                       "distance_in_pixels":self.distance_in_pixels,
+                       "wavelength_in_pixels":self.wave_len,
+                       "nm":self.nm})
+        # print("new config : ", config)
         return config
 
 
@@ -169,9 +182,10 @@ class PropLayer(tf.keras.layers.Layer):
 
 @tf.function
 def output_func(inp):
-    assert (inp.dtype == tf.complex128)
-    real = tf.math.real(inp)
-    imag = tf.math.imag(inp)
+    # assert (inp.dtype == tf.complex128)
+    post_cast = tf.cast(inp, tf.complex128)
+    real = tf.math.real(post_cast)
+    imag = tf.math.imag(post_cast)
     amp = tf.sqrt(real**2 + imag**2)
     amp = amp / (tf.reduce_mean(amp) + 1e-14)
     return amp

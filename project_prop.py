@@ -183,7 +183,7 @@ def my_fft_prop(field,
         field = pad_add(field)
 
     fft_field = tf.cast(tf.signal.fft2d(field),tf.complex128)      # first convert to fft
-    print(field)
+    # print(field)
 
     km = (2*np.pi*nm)/res
 
@@ -199,7 +199,7 @@ def my_fft_prop(field,
     result = tf.cast(tf.signal.ifft2d(pre_ifft),tf.complex128)
     if padding:
         result = pad_rem(result)
-    print("post prop shape :",result.shape)
+    # print("post prop shape :",result.shape)
     return result
 
 

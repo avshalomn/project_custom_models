@@ -14,6 +14,10 @@ The flow is as follows:
 
 This is still a work in progress - any input is more than welcome!
 
+## TODO
+* add a way to know what a model paramters are that are NOT in its name
+
+
 ## Example 
 ```python
 !pip install -q pyyaml h5py  # Required to save models in HDF5 format
