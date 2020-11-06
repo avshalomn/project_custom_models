@@ -1,10 +1,9 @@
 # Deep Defractive Neural Networks - Custom Simulations
 
 This project target is to supply a (base) module that can train a Neural Net - mimicking a physical 
-diffracting 3D network.
+diffracting 3D Neural Network.
 
 ## How to use
-Currently, the module is capable of dealing the MNIST-digits dataset.
 The flow is as follows:
 * create a model using the *CustomModel* class in *project_model* with the proper parameters.
 * call *model.trainModel()*
@@ -12,13 +11,28 @@ The flow is as follows:
 
 ## Notes
 
-This is still a work in progress - any input is more than welcome!
+* Any input is more than welcome!
+* there are 2 ways to train a NN: 
+    * with a pre-exisitng and pre-processed inputs and targets:
+        * this means that inputs are converted to greyscale and only have 1 layer of color depth.
+        * targets (integer labeles - 0, 1, ...) are mapped to 2D image where the desired label is
+         a light up square and the rest of the 2D image is 0's.
+    * in trainModel() feed a data set name (one of TensorFlows data-base) - and the NN will
+     convert a batch of the data every time to fit the system - mid training. 
+     
+Generaly - the first option is much faster - since converting each batch mid flight takes
+ too long.
+ 
+At the end of the training phase, the model and the weights would be saved at DIR_TO_SAVE.
+
+After the testing phase, a confusion matrix will pop, showing biases and the like.
+
 
 ## TODO
-* add a way to know what a model paramters are that are NOT in its name
+This system could always use more work - both from the design and flow of the module (SW) and also 
+the engineering (Optical) part of it.
 
-
-## Example 
+## Constructing the model 
 ```python
 !pip install -q pyyaml h5py  # Required to save models in HDF5 format
 
@@ -65,22 +79,20 @@ from project_model import *
 PI = np.pi
 
 
-
-
 #############################
 ###### Consts ###############
 #############################
-MODEL_NAME              = "MNIST_amp&phase&z=75&#layers=3&wavelen=1.3"
-INPUTS_PATH             = MNIST_2D_LABLES
+MODEL_NAME              = "newMnist"
+INPUTS_PATH             = MNIST_TRAIN
 TARGETS_PATH            = MNIST_28x28_LABLES
 NUM_OF_SAMPLES          = 60000
-NUM_OF_LAYERS           = 3
-LAYERS_DISTANCE         = 75.0
-WAVELENGTH_IN_PIXELS    = 1.3
+NUM_OF_LAYERS           = 4
+LAYERS_DISTANCE         = 100
+WAVELENGTH_IN_PIXELS    = 0.85
 NM                      = 1.0
-LEARNING_RATE           = 0.001
-BATCH_SIZE              = 8
-EPOCHS                  = 1
+LEARNING_RATE           = 0.0001
+BATCH_SIZE              = 4
+EPOCHS                  = 10
 DIR_TO_SAVE             = "/content/drive/My Drive/Colab Notebooks/project_custom_models/models"
 NAME_TO_SAVE            = MODEL_NAME
 WEIGHTS_NAME            = MODEL_NAME+"weights"
@@ -89,7 +101,8 @@ RESCALING_FACTOR        = 7
 PADDING_FACTOR          = 0
 AMP_MODULATION          = True
 PHASE_MODULATION        = True
-
+TEST_INPUTS_PATH        = MNIST_TRAIN
+TEST_LABELS_PATH        = MNIST_TRAIN_LABLES
 
 ### Create Model ###
 model = CustomModel(
@@ -111,7 +124,10 @@ model = CustomModel(
     rescaling_factor = RESCALING_FACTOR,
     padding_factor   = PADDING_FACTOR,
     amp_modulation   = AMP_MODULATION,
-    phase_modulation = PHASE_MODULATION
+    phase_modulation = PHASE_MODULATION,
+    test_inputs_path = TEST_INPUTS_PATH,
+    test_lables_path = TEST_LABELS_PATH,
+    force_shape = 28
 )
 
 
@@ -124,7 +140,35 @@ LOW_IDX = 0
 HIGH_IDX = 60000
 NUM_OF_SAMPLES_TO_TEST = 100
 NUMERIC_TARGETS = None
+```
 
-# model.testModel()
+## Training the model:
+One can either train the model on data on local machine, or use any of the TF datasets.
+In order to train on local data set - just to:
 
+```python
+model.trainModel()
+```
+
+To use TF data set package:
+```python
+model.trainModel(
+    local_training_set = False, 
+    tf_dataset_name = 'cifar10'
+    )
+```
+
+## Loading a trained model:
+```python
+!pip install -q pyyaml h5py  # Required to save models in HDF5 format
+model.model.build((None, 224, 224)) # give the shape of the layer
+model.model.load_weights("/content/drive/My Drive/Colab Notebooks/project_custom_models/models/newCifar/")
+```
+
+## Testing the Model:
+```python
+model.shape = (196,196) # see internal function docu for args 
+model.testModel(0, 60000, 500, TEST_LABELS_PATH,  True, None, TEST_INPUTS_PATH,
+                monte_carlo = False, monte_carlo_variance = 0.05, 
+                input_shift = True, input_shift_percentrage = 0.1)
 ```

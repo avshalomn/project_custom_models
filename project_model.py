@@ -92,7 +92,8 @@ class CustomModel():
         assert len(self.inputs.shape) >= 3
         shape_1d = (self.inputs.shape)[1]
 
-        if (self.force_shape != None):
+        if (self.force_shape != None):  # FIXME: currntly the force shape is the only way to give
+            # the system the right shape
             shape_1d = self.force_shape
 
         if self.rescaling_f != None:
@@ -189,42 +190,50 @@ class CustomModel():
             num_of_examples = int (info.splits["train"].num_examples)
             for_loops_num = num_of_examples//self.batch_size
 
-            ds = ds.shuffle(num_of_examples).batch(self.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
-            for i in (range(for_loops_num)):
+            for epoch in self.epochs:
+                print("Start Epoch num {}".format(epoch))
+
+                ds = ds.shuffle(num_of_examples).batch(self.batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+                for i in (range(for_loops_num)):
+
+                    if (i % 100 == 0):
+                        print("train number : {}".format(i))
+
+                    for example in ds.take(1):
+                        # covert inputs to grey scale and targets labels to 2D labels
+                        input_batch, target_batch = project_utils.make_inputs_targets_batch(example)
+
+                    if ((i % (for_loops_num // 10)) == 0):
+                        print("step #{} out of {}".format(i, for_loops_num))
 
 
-                for example in ds.take(1):
-                    # covert inputs to grey scale and targets labels to 2D labels
-                    input_batch, target_batch = project_utils.make_inputs_targets_batch(example)
+                    print("fitting input")
+                    if self.rescaling_f > 0:
+                        input_batch = project_utils.rescale_batch(input_batch,
+                                                                  input_batch.shape[1]*
+                                                                  self.rescaling_f)
 
-                if ((i % (for_loops_num // 10)) == 0):
-                    print("step #{} out of {}".format(i, for_loops_num))
+                    if self.padding_f > 0:
+                        input_batch = tf.pad(input_batch, self.padding)
 
+                    print("fitting target")
+                    if (target_batch.shape != input_batch.shape):
+                        target_batch = project_utils.rescale_batch(target_batch, input_batch.shape[1])
 
+                    assert (target_batch.shape == input_batch.shape), "---- input batch shape != " \
+                                                                      "targets " \
+                                                                      "shape! ----"
+                    # print("input batch shape: {}, target shape: {}".format(input_batch.shape,
+                    #                                               target_batch.shape))
 
-                if self.rescaling_f > 0:
-                    input_batch = project_utils.rescale_batch(input_batch,
-                                                              input_batch.shape[1]*
-                                                              self.rescaling_f)
+                    input_batch = tf.cast(input_batch, tf.complex128)
 
-                if self.padding_f > 0:
-                    input_batch = tf.pad(input_batch, self.padding)
+                    ## note - reshaping targets like so only right for 3D targets !##
+                    target_batch = tf.reshape(target_batch,(self.batch_size,
+                                                            target_batch.shape[1]*target_batch.shape[2]))
 
-                if (target_batch.shape != input_batch.shape):
-                    target_batch = project_utils.rescale_batch(target_batch, input_batch.shape[1])
-
-                assert (target_batch.shape == input_batch.shape), "---- input batch shape != " \
-                                                                  "targets " \
-                                                                  "shape! ----"
-
-                input_batch = tf.cast(input_batch, tf.complex128)
-
-                ## note - reshaping targets like so only right for 3D targets !##
-                target_batch = tf.reshape(target_batch,(self.batch_size,
-                                                        target_batch.shape[1]*target_batch.shape[2]))
-
-
-                model.fit(input_batch, target_batch, epochs=1, use_multiprocessing=True, verbose=0)
+                    print("training")
+                    model.fit(input_batch, target_batch, epochs=1, use_multiprocessing=True, verbose=0)
 
         else:
             new_inp_size = self.num_of_samples//self.batch_size
@@ -313,7 +322,10 @@ class CustomModel():
                   tf_dataset_name = None,
                   inputs_test_set = None,
                   monte_carlo = False,
-                  monte_carlo_variance = None):
+                  monte_carlo_variance = None,
+                  input_shift = False,
+                  input_shift_percentrage = None
+                  ):
 
         """
 
@@ -333,13 +345,22 @@ class CustomModel():
         TT = project_utils.Truth_table()
         TT.clear()
 
-        assert (local_training_set == False and tf_dataset_name != None), "If dataset is not " \
-                                                                          "local, tf_dataset_name arg should be != None"
+        # # assert (local_training_set == False and tf_dataset_name != None), "If dataset is not " \
+        #                                                                   "local, tf_dataset_name arg should be != None"
+
+        true_count = 0
+        flase_count = 0
+
 
         # Deal with tf_datasets:
         if (tf_dataset_name != None and local_training_set == False):
             ds, info = tfds.load(tf_dataset_name, split='test', shuffle_files=True, with_info=True)
             num_of_samples = int (info.splits["test"].num_examples)
+
+            if monte_carlo == True:
+                test_model = self.monteCarlo(monte_carlo_variance)
+            else:
+                test_model = self.model
 
             ds = ds.shuffle(num_of_samples).batch(1).prefetch(tf.data.experimental.AUTOTUNE)
             count = 0
@@ -347,6 +368,10 @@ class CustomModel():
 
                 for example in ds.take(1):
                     input_batch, target_batch = project_utils.make_inputs_targets_batch(example)
+                    expected = example["label"].numpy()[0]
+                    # print(expected)
+                    # print(example)
+                    # print(example["label"].numpy)
 
                 inp_shape = input_batch.shape
                 if len(inp_shape) == 2:
@@ -358,7 +383,9 @@ class CustomModel():
                 if self.rescaling_f > 0:
                     input_batch = project_utils.rescale_batch(input_batch,
                                                               input_batch.shape[1]*
-                                                              self.rescaling_f)
+                                                              self.rescaling_f,
+                                                              input_shift,
+                                                              input_shift_percentrage)
 
                 if self.padding_f > 0:
                     input_batch = tf.pad(input_batch, self.padding)
@@ -390,10 +417,6 @@ class CustomModel():
                 #
                 # inp = tf.cast(inp, tf.complex128)
                 # assign Monte Carlo model or the clean model
-                if monte_carlo == True:
-                    test_model = self.monteCarlo(monte_carlo_variance)
-                else:
-                    test_model = self.model
 
                 y = test_model.predict(input_batch)
 
@@ -404,18 +427,18 @@ class CustomModel():
                                                0.3) == True):
                     # TT.add_true(numeric_targets[idx])  // TODO - uncomment and debug
                     print("TRUE")
-                    plt.subplot(311)
-                    plt.imshow(tf.abs(tf.reshape(input_batch, (WIDTH, HEIGHT))))
-                    plt.subplot(312)
-                    plt.imshow(tf.reshape(target_batch, (WIDTH, HEIGHT)))
-                    plt.subplot(313)
-                    project_utils.show_max_area(tf.reshape(y, (WIDTH, HEIGHT)))
-                    project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
-                    plt.show()
-                    TT.add_true(example["label"])
+                    # plt.subplot(311)
+                    # plt.imshow(tf.abs(tf.reshape(input_batch, (WIDTH, HEIGHT))))
+                    # plt.subplot(312)
+                    # plt.imshow(tf.reshape(target_batch, (WIDTH, HEIGHT)))
+                    # plt.subplot(313)
+                    # project_utils.show_max_area(tf.reshape(y, (WIDTH, HEIGHT)))
+                    # project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
+                    # plt.show()
+                    true_count+=1
+                    TT.add_true(expected)
 
                 else:
-                    # TT.add_false(numeric_targets[idx])
                     print("FALSE")
                     plt.subplot(311)
                     plt.imshow(tf.abs(tf.reshape(input_batch, (WIDTH, HEIGHT))))
@@ -425,22 +448,31 @@ class CustomModel():
                     project_utils.show_max_area(tf.reshape(y, (WIDTH, HEIGHT)))
                     project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
                     plt.show()
-                    TT.add_false(example["label"])
+                    flase_count+=1
+                    actual_label = project_utils.result_to_label(project_utils.find_max_area(
+                        y.reshape(HEIGHT, WIDTH))[1], y.reshape(HEIGHT, WIDTH))
+
+                    print("expected label: {}, got label: {}".format(expected, actual_label))
+                    TT.add_false(expected, actual_label)
 
                 count += 1
 
                 # print("# of True: ", TT.trues)
                 # print("# of False: ", TT.falses)
 
-            print("Total # of True: ", TT.trues)
-            print("Total # of False: ", TT.falses)
-
-            print(TT.mat)
-
+            print("Total # of True: ", true_count)
+            print("Total # of False: ", flase_count)
+            TT.print_table("Mnist", "Got", "Expected")
 
         else:
             #create a list of indexes for tests
             test_idx_list = np.random.randint(test_low_idx, test_high_idx, num_of_samples_to_tests)
+
+            # assign Monte Carlo model or the clean model
+            if monte_carlo == True:
+                test_model = self.monteCarlo(monte_carlo_variance)
+            else:
+                test_model = self.model
 
             count = 1
             for idx in test_idx_list:
@@ -452,12 +484,15 @@ class CustomModel():
                     inp = self.tests_inputs[idx]
                     assert (len(inp.shape) == 2)
                     target = project_utils.make_2D_label(self.test_targets_labels[idx], inp.shape)
+                    expected = self.test_targets_labels[idx]
 
                 else:
                     inp = self.inputs[idx]
                     target = self.targets[idx]
 
                 # deal with rescaling
+                if (input_shift):
+                    inp = project_utils.shift_pic_rand(inp, input_shift_percentrage, True)
 
                 inp_shape = inp.shape
                 if len(inp_shape) == 2:
@@ -481,11 +516,6 @@ class CustomModel():
 
                 inp = tf.cast(inp, tf.complex128)
 
-                # assign Monte Carlo model or the clean model
-                if monte_carlo == True:
-                    test_model = self.monteCarlo(monte_carlo_variance)
-                else:
-                    test_model = self.model
 
                 y = test_model.predict(inp)
 
@@ -496,8 +526,9 @@ class CustomModel():
                                  0.3) == True):
                     # TT.add_true(numeric_targets[idx])  // TODO - uncomment and debug
                     print("TRUE")
+                    true_count += 1
+                    TT.add_true(expected)
                 else:
-                    TT.add_false(numeric_targets[idx])
                     print("FALSE")
                     plt.subplot(311)
                     plt.imshow(tf.abs(tf.reshape(inp, (WIDTH, HEIGHT))))
@@ -507,6 +538,12 @@ class CustomModel():
                     project_utils.show_max_area(tf.reshape(y, (WIDTH, HEIGHT)))
                     project_utils.show_max_area((y.reshape(WIDTH, HEIGHT)))
                     plt.show()
+                    flase_count += 1
+                    actual_label = project_utils.result_to_label(project_utils.find_max_area(
+                        y.reshape(HEIGHT, WIDTH))[1], y.reshape(HEIGHT, WIDTH))
+
+                    print("expected label: {}, got label: {}".format(expected, actual_label))
+                    TT.add_false(expected, actual_label)
 
                 count+=1
 
@@ -515,6 +552,8 @@ class CustomModel():
 
             print("Total # of True: ", TT.trues)
             print("Total # of False: ", TT.falses)
+            TT.print_table("Mnist", "Got", "Expected")
+
 
 
     def printHeader(self):

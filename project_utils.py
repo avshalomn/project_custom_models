@@ -91,11 +91,8 @@ def make_2D_label(label: int, original_input_shape: tuple):
     coors = get_sqaures_corrs(label, original_input_shape)
     new_label[coors[0]:coors[1], coors[2]:coors[3]] = 1
 
-    # convert to tensor
     new_label = tf.convert_to_tensor(new_label)
 
-    # plt.figure()
-    # plt.imshow(new_label)
     return new_label
 
 
@@ -107,7 +104,10 @@ def make_inputs_targets_batch(input_and_targets_batch):
 
     original_shape = input_and_targets_batch["image"][0].shape[:2]
 
-    inp_batch = np.array([rgb2gray(i) for i in input_and_targets_batch["image"]])
+    if (input_and_targets_batch["image"][0].shape[2] == 3):
+        inp_batch = np.array([rgb2gray(i) for i in input_and_targets_batch["image"]])
+    else:
+        inp_batch = np.array([i for i in input_and_targets_batch["image"]])
     numeric_lables = [i for i in input_and_targets_batch["label"]]
 
     # print("the numeric labels are: ", numeric_lables)
@@ -160,15 +160,35 @@ class Truth_table:
         self.hits[n] += 1
         self.mat[n][n] += 1
 
-    def add_false(self, expected):
+    def add_false(self, expected, actual):
         self.falses += 1
         self.misses[expected] += 1
-        # self.mat[expected][actual] += 1
+        self.mat[expected][actual] += 1
 
     def clear(self):
         self.hits = self.misses = self.d
         self.trues = self.falses = 0
         self.mat = np.zeros((10, 10))
+
+
+    def print_table(self,
+                    data_set_name : str,
+                    x_title : str,
+                    y_title : str
+                    ):
+        fig, ax = plt.subplots()
+        im = ax.imshow(self.mat, cmap='YlGn')
+        for i in range(10):
+            for j in range(10):
+                text = ax.text(j, i, round(self.mat[i, j],2),
+                               ha="center", va="center", color="black")
+
+        ax.set_title("Confusion Matrix for: {}".format(data_set_name))
+        ax.set_xlabel(x_title)
+        ax.set_ylabel(y_title)
+        fig.tight_layout()
+        plt.show()
+
 
 
 # @tf.function
@@ -200,13 +220,120 @@ def show_max_area(img):
     plt.imshow(overlay, cmap='jet', alpha=0.5)
 
 
+def result_to_label(result_coors, img):
+
+
+    for i in range(10):
+        local_coors = [result_coors[0][0],result_coors[0][1], result_coors[1][0], result_coors[
+            1][1]]
+        two_d_label = get_sqaures_corrs(i, img.shape)
+
+        # fit the area to the label
+        while(abs(local_coors[1] - local_coors[0]) > abs(two_d_label[1] - two_d_label[0])):
+            local_coors[0]+=1
+            local_coors[1]-=1
+
+        while(abs(local_coors[3] - local_coors[2]) > abs(two_d_label[3] - two_d_label[2])):
+            local_coors[2]+=1
+            local_coors[3]-=1
+
+
+        if (
+            get_precentage_in_range((local_coors[0], local_coors[1]),
+                                    (two_d_label[0], two_d_label[1])) > 0.7 and
+            get_precentage_in_range((local_coors[2],local_coors[3]),
+                                    (two_d_label[2],two_d_label[3])) > 0.7):
+
+            print("actual label was: {}".format(i))
+            return i
+    return None
+
+
+def get_precentage_in_range(tup1 : tuple,
+                            tup2 : tuple):
+    sum = 0
+
+    if (abs(tup1[1] - tup1[0]) > abs(tup2[1] - tup2[0])):
+        for i in range(tup2[0], tup2[1]):
+            if i >= tup1[0] and i <= tup1[1]:
+                sum+=1
+        return sum/len(tup1)
+
+    for i in range(tup1[0], tup1[1]):
+        if i >= tup2[0] and i <= tup2[1]:
+            sum+=1
+    return sum/len(tup2)
+
+
+
+
+
+
 @tf.function
-def rescale_batch(batch, new_size):
+def rescale_batch(batch, new_size, shift_input = False, shift_per = None):
     tmp_b = batch
     tmp_b = tf.reshape(tmp_b, (tmp_b.shape[0], tmp_b.shape[1], tmp_b.shape[2], 1))
     with_pad = tf.image.resize_with_pad(tmp_b, new_size, new_size, antialias=True)
-    return tf.reshape(with_pad, (tmp_b.shape[0], with_pad.shape[1], with_pad.shape[2]))
+    if (shift_input):
+        fnc = lambda x : shift_pic_rand(x, shift_per, True)
+        tf.map_fn(fnc, with_pad)
+        return tf.reshape(with_pad, (tmp_b.shape[0], with_pad.shape[1], with_pad.shape[2]))
+    else:
+        return tf.reshape(with_pad, (tmp_b.shape[0], with_pad.shape[1], with_pad.shape[2]))
 
+@tf.function
+def shift_pic_rand(image , max_percent : float, rand_mode = False):
+    """
+
+    :param image:
+    :param max_percent: maximum percent of shift
+    :param rand_mode:
+    :return:
+    """
+    assert (max_percent <= 0.1), "max percent cannot be bigger than 10% - in risk of loosing data"
+
+    if (rand_mode == True):
+        pixels_to_shift_y_ax = int(np.random.uniform(0, max_percent) * (image.shape[0]))
+        pixels_to_shift_x_ax = int(np.random.uniform(0, max_percent) * (image.shape[1]))
+    else:
+        pixels_to_shift_y_ax = int(max_percent * (image.shape[0]))
+        pixels_to_shift_x_ax = int(max_percent * (image.shape[1]))
+
+    add_to_top = np.random.randint(2)
+    add_to_left = np.random.randint(2)
+
+    # new_img = np.asarray(image)
+    new_img = tf.convert_to_tensor(image)
+
+
+    res = np.zeros(image.shape)
+
+    if (add_to_top):
+        if(add_to_left):
+            pads    = tf.constant([[pixels_to_shift_y_ax,0],[pixels_to_shift_x_ax,0]])
+            # new_img = np.pad(new_img, [[pixels_to_shift_y_ax,0],[pixels_to_shift_x_ax,0]])
+            new_img = tf.pad(new_img, pads)
+            res     = new_img[0 : res.shape[0], 0: res.shape[1]]
+        else:
+            pads    = tf.constant( [[pixels_to_shift_y_ax,0],[0,pixels_to_shift_x_ax]])
+            # new_img = np.pad(new_img, [[pixels_to_shift_y_ax,0],[0,pixels_to_shift_x_ax]])
+            new_img = tf.pad(new_img, pads)
+            res     = new_img[0: res.shape[0],pixels_to_shift_x_ax : pixels_to_shift_x_ax + res.shape[0]]
+    else:
+        if (add_to_left):
+            pads    = tf.constant([[0, pixels_to_shift_y_ax],[pixels_to_shift_x_ax, 0]])
+            # new_img = np.pad(new_img, [[0, pixels_to_shift_y_ax],[pixels_to_shift_x_ax, 0]])
+            new_img = tf.pad(new_img, pads)
+            res     = new_img[pixels_to_shift_y_ax : pixels_to_shift_y_ax + res.shape[0],
+                      0 : res.shape[1]]
+        else:
+            pads    = tf.constant([[0, pixels_to_shift_y_ax],[0,pixels_to_shift_x_ax]])
+            # new_img = np.pad(new_img, [[0, pixels_to_shift_y_ax],[0,pixels_to_shift_x_ax]])
+            new_img = tf.pad(new_img, pads)
+            res     = new_img[pixels_to_shift_y_ax : pixels_to_shift_y_ax + res.shape[0],
+                      pixels_to_shift_x_ax : pixels_to_shift_x_ax + res.shape[1]]
+
+    return res
 
 @tf.function
 def save_model_to_json(model, model_shape:tuple, dir_to_save:str, name_to_save:str):
